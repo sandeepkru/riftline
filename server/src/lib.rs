@@ -1,10 +1,10 @@
+use common::object_store::{LocalFileSystemStore, ObjectStore};
 use proto::riftline::consumer_server::{Consumer, ConsumerServer};
 use proto::riftline::offset_commit_server::{OffsetCommit, OffsetCommitServer};
 use proto::riftline::producer_server::{Producer, ProducerServer};
 use proto::riftline::*;
-use common::object_store::{LocalFileSystemStore, ObjectStore};
 use tokio_stream::wrappers::ReceiverStream;
-use tonic::{transport::Server, Request, Response, Status};
+use tonic::{Request, Response, Status, transport::Server};
 
 use std::future::Future;
 use std::net::SocketAddr;
@@ -51,8 +51,7 @@ impl Producer for BasicProducer {
 
         let key = format!("segments/{}/segment_0.log", req.topic);
 
-        self
-            .store
+        self.store
             .put(&key, &bytes)
             .await
             .map_err(|e| Status::internal(e.to_string()))?;
@@ -121,8 +120,7 @@ mod tests {
         }
 
         async fn get(&self, key: &str) -> std::io::Result<Vec<u8>> {
-            self
-                .data
+            self.data
                 .lock()
                 .unwrap()
                 .get(key)
@@ -180,9 +178,7 @@ mod tests {
 
         producer.produce(request).await.unwrap();
 
-        let path = dir
-            .path()
-            .join("segments/topic/segment_0.log");
+        let path = dir.path().join("segments/topic/segment_0.log");
         let bytes = tokio::fs::read(path).await.unwrap();
         assert_eq!(bytes, b"hello\n");
     }
