@@ -6,10 +6,17 @@ workspace containing two crates:
 - `server`: executable crate hosting the gRPC services
 - `common`: shared library for common types and utilities
 
-To build the workspace run:
+Common development tasks are managed via [`just`](https://github.com/casey/just). To build
+the workspace run:
 
 ```bash
-cargo build
+just build
+```
+
+Run the full CI task locally with:
+
+```bash
+just ci
 ```
 
 
