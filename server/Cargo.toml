@@ -7,3 +7,5 @@ edition = "2024"
 proto = { path = "../proto" }
 tokio = { version = "1", features = ["full"] }
 tonic = { version = "0.10", features = ["transport"] }
+clap = { version = "4", features = ["derive", "env"] }
+tokio-stream = "0.1"

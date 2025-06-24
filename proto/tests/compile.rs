@@ -1,9 +1,9 @@
-use proto::riftline::producer_server::{Producer, ProducerServer};
 use proto::riftline::consumer_server::{Consumer, ConsumerServer};
 use proto::riftline::offset_commit_server::{OffsetCommit, OffsetCommitServer};
+use proto::riftline::producer_server::{Producer, ProducerServer};
 use proto::riftline::*;
-use tonic::{Request, Response, Status};
 use tokio_stream::wrappers::ReceiverStream;
+use tonic::{Request, Response, Status};
 
 #[derive(Default)]
 struct MockProducer;
@@ -14,7 +14,10 @@ impl Producer for MockProducer {
         &self,
         _request: Request<ProduceRequest>,
     ) -> Result<Response<ProduceResponse>, Status> {
-        Ok(Response::new(ProduceResponse { partition: 0, offset: 0 }))
+        Ok(Response::new(ProduceResponse {
+            partition: 0,
+            offset: 0,
+        }))
     }
 }
 
@@ -50,7 +53,7 @@ impl OffsetCommit for MockOffsetCommit {
 
 #[tokio::test]
 async fn servers_build() {
-    let _p = ProducerServer::new(MockProducer::default());
-    let _c = ConsumerServer::new(MockConsumer::default());
-    let _o = OffsetCommitServer::new(MockOffsetCommit::default());
+    let _p = ProducerServer::new(MockProducer);
+    let _c = ConsumerServer::new(MockConsumer);
+    let _o = OffsetCommitServer::new(MockOffsetCommit);
 }
