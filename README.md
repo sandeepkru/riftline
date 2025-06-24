@@ -28,3 +28,20 @@ just coverage
 Workspace Layout:
 - server/: gRPC server
 - common/: shared code
+
+## Docker
+
+A multi-stage `Dockerfile` is provided for building a minimal runtime image containing the server.
+Build the container with:
+
+```bash
+docker build -t riftline-server .
+```
+
+Run the server:
+
+```bash
+docker run --rm -p 50051:50051 riftline-server
+```
+
+The server will start and listen on port `50051` by default.
