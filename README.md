@@ -25,7 +25,6 @@ Generate a coverage report with:
 just coverage
 ```
 
-
 Workspace Layout:
 - server/: gRPC server
 - common/: shared code

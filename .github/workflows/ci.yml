@@ -31,3 +31,5 @@ jobs:
         run: just test
       - name: Coverage
         run: just coverage
+      - name: Run CI tasks
+        run: just ci
