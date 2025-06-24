@@ -1,4 +1,4 @@
-use std::path::{PathBuf};
+use std::path::PathBuf;
 use tokio::fs;
 use tokio::io;
 use tonic::async_trait;
@@ -63,10 +63,7 @@ mod tests {
     async fn creates_intermediate_directories() {
         let dir = tempdir().unwrap();
         let store = LocalFileSystemStore::new(dir.path());
-        store
-            .put("nested/path/file", b"baz")
-            .await
-            .unwrap();
+        store.put("nested/path/file", b"baz").await.unwrap();
         let data = store.get("nested/path/file").await.unwrap();
         assert_eq!(data, b"baz");
     }
