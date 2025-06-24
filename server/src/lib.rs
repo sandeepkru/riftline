@@ -13,9 +13,9 @@ pub async fn serve(
     shutdown: impl Future<Output = ()> + Send,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     Server::builder()
-        .add_service(ProducerServer::new(BasicProducer::default()))
-        .add_service(ConsumerServer::new(BasicConsumer::default()))
-        .add_service(OffsetCommitServer::new(BasicOffsetCommit::default()))
+        .add_service(ProducerServer::new(BasicProducer))
+        .add_service(ConsumerServer::new(BasicConsumer))
+        .add_service(OffsetCommitServer::new(BasicOffsetCommit))
         .serve_with_shutdown(addr, shutdown)
         .await?;
     Ok(())

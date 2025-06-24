@@ -53,7 +53,7 @@ impl OffsetCommit for MockOffsetCommit {
 
 #[tokio::test]
 async fn servers_build() {
-    let _p = ProducerServer::new(MockProducer::default());
-    let _c = ConsumerServer::new(MockConsumer::default());
-    let _o = OffsetCommitServer::new(MockOffsetCommit::default());
+    let _p = ProducerServer::new(MockProducer);
+    let _c = ConsumerServer::new(MockConsumer);
+    let _o = OffsetCommitServer::new(MockOffsetCommit);
 }
