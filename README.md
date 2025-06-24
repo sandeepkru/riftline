@@ -19,6 +19,11 @@ Run the full CI task locally with:
 just ci
 ```
 
+Generate a coverage report with:
+
+```bash
+just coverage
+```
 
 Workspace Layout:
 - server/: gRPC server

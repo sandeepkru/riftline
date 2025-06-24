@@ -19,5 +19,9 @@ build:
 test:
     cargo test --workspace --all-targets
 
-# Convenience task for CI: format, lint, build, and test
-ci: fmt lint build test
+# Generate a coverage report and fail if below threshold
+coverage:
+    cargo tarpaulin --workspace --all-targets --timeout 120 --fail-under 80
+
+# Convenience task for CI: format, lint, build, test and coverage
+ci: fmt lint build test coverage
