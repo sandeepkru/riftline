@@ -1,0 +1,45 @@
+syntax = "proto3";
+package riftline;
+
+service Producer {
+    rpc Produce(ProduceRequest) returns (ProduceResponse);
+}
+
+service Consumer {
+    rpc Consume(ConsumeRequest) returns (stream ConsumeResponse);
+}
+
+service OffsetCommit {
+    rpc Commit(CommitRequest) returns (CommitResponse);
+}
+
+message ProduceRequest {
+    string topic = 1;
+    bytes message = 2;
+}
+
+message ProduceResponse {
+    int32 partition = 1;
+    int64 offset = 2;
+}
+
+message ConsumeRequest {
+    string topic = 1;
+    int32 partition = 2;
+}
+
+message ConsumeResponse {
+    int64 offset = 1;
+    bytes message = 2;
+}
+
+message CommitRequest {
+    string topic = 1;
+    int32 partition = 2;
+    int64 offset = 3;
+    string consumer_group = 4;
+}
+
+message CommitResponse {
+    bool success = 1;
+}

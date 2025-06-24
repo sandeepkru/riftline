@@ -1,0 +1,16 @@
+[package]
+name = "proto"
+version = "0.1.0"
+edition = "2024"
+build = "build.rs"
+
+[dependencies]
+tonic = { version = "0.10", features = ["transport"] }
+prost = "0.12"
+
+[build-dependencies]
+tonic-build = "0.10"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread"] }
+tokio-stream = "0.1"
