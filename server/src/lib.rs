@@ -3,7 +3,7 @@ use proto::riftline::consumer_server::{Consumer, ConsumerServer};
 use proto::riftline::offset_commit_server::{OffsetCommit, OffsetCommitServer};
 use proto::riftline::producer_server::{Producer, ProducerServer};
 use proto::riftline::*;
-use tokio_stream::wrappers::ReceiverStream;
+use tokio_stream::wrappers::{ReceiverStream, TcpListenerStream};
 use tonic::{Request, Response, Status, transport::Server};
 
 use std::future::Future;
@@ -15,12 +15,25 @@ pub async fn serve(
     shutdown: impl Future<Output = ()> + Send,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let store = Arc::new(LocalFileSystemStore::new("data"));
-
     Server::builder()
-        .add_service(ProducerServer::new(BasicProducer::new(store)))
-        .add_service(ConsumerServer::new(BasicConsumer))
+        .add_service(ProducerServer::new(BasicProducer::new(store.clone())))
+        .add_service(ConsumerServer::new(BasicConsumer::new(store)))
         .add_service(OffsetCommitServer::new(BasicOffsetCommit))
         .serve_with_shutdown(addr, shutdown)
+        .await?;
+    Ok(())
+}
+
+pub async fn serve_with_listener(
+    listener: tokio::net::TcpListener,
+    store: Arc<dyn ObjectStore + Send + Sync>,
+    shutdown: impl Future<Output = ()> + Send,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    Server::builder()
+        .add_service(ProducerServer::new(BasicProducer::new(store.clone())))
+        .add_service(ConsumerServer::new(BasicConsumer::new(store)))
+        .add_service(OffsetCommitServer::new(BasicOffsetCommit))
+        .serve_with_incoming_shutdown(TcpListenerStream::new(listener), shutdown)
         .await?;
     Ok(())
 }
@@ -63,8 +76,16 @@ impl Producer for BasicProducer {
     }
 }
 
-#[derive(Default)]
-struct BasicConsumer;
+#[derive(Clone)]
+struct BasicConsumer {
+    store: Arc<dyn ObjectStore + Send + Sync>,
+}
+
+impl BasicConsumer {
+    fn new(store: Arc<dyn ObjectStore + Send + Sync>) -> Self {
+        Self { store }
+    }
+}
 
 #[tonic::async_trait]
 impl Consumer for BasicConsumer {
@@ -72,10 +93,41 @@ impl Consumer for BasicConsumer {
 
     async fn consume(
         &self,
-        _request: Request<ConsumeRequest>,
+        request: Request<ConsumeRequest>,
     ) -> Result<Response<Self::ConsumeStream>, Status> {
+        let req = request.into_inner();
+        let key = format!("segments/{}/segment_{}.log", req.topic, req.partition);
+        let data = self
+            .store
+            .get(&key)
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?;
+
+        let messages: Vec<_> = data
+            .split(|b| *b == b'\n')
+            .filter(|m| !m.is_empty())
+            .map(|m| m.to_vec())
+            .collect();
+
+        let start = req.offset as usize;
         let (tx, rx) = tokio::sync::mpsc::channel(1);
-        drop(tx);
+        tokio::spawn(async move {
+            let mut offset = req.offset;
+            for msg in messages.into_iter().skip(start) {
+                if tx
+                    .send(Ok(ConsumeResponse {
+                        offset,
+                        message: msg,
+                    }))
+                    .await
+                    .is_err()
+                {
+                    break;
+                }
+                offset += 1;
+            }
+        });
+
         Ok(Response::new(ReceiverStream::new(rx)))
     }
 }
@@ -100,9 +152,12 @@ pub fn add(left: u64, right: u64) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use proto::riftline::consumer_client::ConsumerClient;
+    use proto::riftline::producer_client::ProducerClient;
     use std::collections::HashMap;
     use std::sync::{Arc, Mutex};
     use tempfile::tempdir;
+    use tokio::net::TcpListener;
 
     #[derive(Default, Clone)]
     struct MockStore {
@@ -181,5 +236,58 @@ mod tests {
         let path = dir.path().join("segments/topic/segment_0.log");
         let bytes = tokio::fs::read(path).await.unwrap();
         assert_eq!(bytes, b"hello\n");
+    }
+
+    async fn start_server_temp() -> (
+        SocketAddr,
+        tokio::sync::oneshot::Sender<()>,
+        tempfile::TempDir,
+    ) {
+        let dir = tempdir().unwrap();
+        let store = Arc::new(LocalFileSystemStore::new(dir.path()));
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        tokio::spawn(async move {
+            let _ = serve_with_listener(listener, store, async {
+                rx.await.ok();
+            })
+            .await;
+        });
+        (addr, tx, dir)
+    }
+
+    #[tokio::test]
+    async fn produce_then_consume() {
+        let (addr, shutdown, _dir) = start_server_temp().await;
+
+        let endpoint = format!("http://{}", addr);
+        let mut producer = ProducerClient::connect(endpoint.clone()).await.unwrap();
+        producer
+            .produce(ProduceRequest {
+                topic: "topic".into(),
+                messages: vec![b"one".to_vec(), b"two".to_vec()],
+            })
+            .await
+            .unwrap();
+
+        let mut consumer = ConsumerClient::connect(endpoint).await.unwrap();
+        let response = consumer
+            .consume(ConsumeRequest {
+                topic: "topic".into(),
+                partition: 0,
+                offset: 0,
+            })
+            .await
+            .unwrap();
+        let mut stream = response.into_inner();
+        let mut messages = Vec::new();
+        while let Some(msg) = stream.message().await.unwrap() {
+            messages.push(msg.message);
+        }
+
+        assert_eq!(messages, vec![b"one".to_vec(), b"two".to_vec()]);
+
+        shutdown.send(()).unwrap();
     }
 }
