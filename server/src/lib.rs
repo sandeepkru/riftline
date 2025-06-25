@@ -6,9 +6,10 @@ use proto::riftline::*;
 use tokio_stream::wrappers::{ReceiverStream, TcpListenerStream};
 use tonic::{Request, Response, Status, transport::Server};
 
+use std::collections::HashMap;
 use std::future::Future;
 use std::net::SocketAddr;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 pub async fn serve(
     addr: SocketAddr,
@@ -18,7 +19,7 @@ pub async fn serve(
     Server::builder()
         .add_service(ProducerServer::new(BasicProducer::new(store.clone())))
         .add_service(ConsumerServer::new(BasicConsumer::new(store)))
-        .add_service(OffsetCommitServer::new(BasicOffsetCommit))
+        .add_service(OffsetCommitServer::new(BasicOffsetCommit::default()))
         .serve_with_shutdown(addr, shutdown)
         .await?;
     Ok(())
@@ -32,7 +33,7 @@ pub async fn serve_with_listener(
     Server::builder()
         .add_service(ProducerServer::new(BasicProducer::new(store.clone())))
         .add_service(ConsumerServer::new(BasicConsumer::new(store)))
-        .add_service(OffsetCommitServer::new(BasicOffsetCommit))
+        .add_service(OffsetCommitServer::new(BasicOffsetCommit::default()))
         .serve_with_incoming_shutdown(TcpListenerStream::new(listener), shutdown)
         .await?;
     Ok(())
@@ -132,16 +133,45 @@ impl Consumer for BasicConsumer {
     }
 }
 
-#[derive(Default)]
-struct BasicOffsetCommit;
+#[derive(Clone)]
+struct BasicOffsetCommit {
+    offsets: Arc<Mutex<HashMap<(String, i32, String), i64>>>,
+}
+
+impl Default for BasicOffsetCommit {
+    fn default() -> Self {
+        Self {
+            offsets: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+}
 
 #[tonic::async_trait]
 impl OffsetCommit for BasicOffsetCommit {
     async fn commit(
         &self,
-        _request: Request<CommitRequest>,
+        request: Request<CommitRequest>,
     ) -> Result<Response<CommitResponse>, Status> {
+        let req = request.into_inner();
+        self.offsets
+            .lock()
+            .unwrap()
+            .insert((req.topic, req.partition, req.consumer_group), req.offset);
         Ok(Response::new(CommitResponse { success: true }))
+    }
+
+    async fn fetch(
+        &self,
+        request: Request<FetchRequest>,
+    ) -> Result<Response<FetchResponse>, Status> {
+        let req = request.into_inner();
+        let offset = *self
+            .offsets
+            .lock()
+            .unwrap()
+            .get(&(req.topic, req.partition, req.consumer_group))
+            .unwrap_or(&0);
+        Ok(Response::new(FetchResponse { offset }))
     }
 }
 
@@ -289,5 +319,86 @@ mod tests {
         assert_eq!(messages, vec![b"one".to_vec(), b"two".to_vec()]);
 
         shutdown.send(()).unwrap();
+    }
+
+    #[tokio::test]
+    async fn commit_and_fetch_roundtrip() {
+        let service = BasicOffsetCommit::default();
+
+        service
+            .commit(Request::new(CommitRequest {
+                topic: "topic".into(),
+                partition: 0,
+                offset: 5,
+                consumer_group: "group".into(),
+            }))
+            .await
+            .unwrap();
+
+        let resp = service
+            .fetch(Request::new(FetchRequest {
+                topic: "topic".into(),
+                partition: 0,
+                consumer_group: "group".into(),
+            }))
+            .await
+            .unwrap()
+            .into_inner();
+
+        assert_eq!(resp.offset, 5);
+    }
+
+    #[tokio::test]
+    async fn commit_overwrite() {
+        let service = BasicOffsetCommit::default();
+
+        service
+            .commit(Request::new(CommitRequest {
+                topic: "t".into(),
+                partition: 0,
+                offset: 1,
+                consumer_group: "g".into(),
+            }))
+            .await
+            .unwrap();
+
+        service
+            .commit(Request::new(CommitRequest {
+                topic: "t".into(),
+                partition: 0,
+                offset: 2,
+                consumer_group: "g".into(),
+            }))
+            .await
+            .unwrap();
+
+        let resp = service
+            .fetch(Request::new(FetchRequest {
+                topic: "t".into(),
+                partition: 0,
+                consumer_group: "g".into(),
+            }))
+            .await
+            .unwrap()
+            .into_inner();
+
+        assert_eq!(resp.offset, 2);
+    }
+
+    #[tokio::test]
+    async fn fetch_defaults_to_zero() {
+        let service = BasicOffsetCommit::default();
+
+        let resp = service
+            .fetch(Request::new(FetchRequest {
+                topic: "t".into(),
+                partition: 0,
+                consumer_group: "g".into(),
+            }))
+            .await
+            .unwrap()
+            .into_inner();
+
+        assert_eq!(resp.offset, 0);
     }
 }

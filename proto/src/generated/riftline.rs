@@ -51,6 +51,22 @@ pub struct CommitResponse {
     #[prost(bool, tag = "1")]
     pub success: bool,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct FetchRequest {
+    #[prost(string, tag = "1")]
+    pub topic: ::prost::alloc::string::String,
+    #[prost(int32, tag = "2")]
+    pub partition: i32,
+    #[prost(string, tag = "3")]
+    pub consumer_group: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct FetchResponse {
+    #[prost(int64, tag = "1")]
+    pub offset: i64,
+}
 /// Generated client implementations.
 pub mod producer_client {
     #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
@@ -378,6 +394,28 @@ pub mod offset_commit_client {
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("riftline.OffsetCommit", "Commit"));
+            self.inner.unary(req, path, codec).await
+        }
+        pub async fn fetch(
+            &mut self,
+            request: impl tonic::IntoRequest<super::FetchRequest>,
+        ) -> std::result::Result<tonic::Response<super::FetchResponse>, tonic::Status> {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::new(
+                        tonic::Code::Unknown,
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/riftline.OffsetCommit/Fetch",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("riftline.OffsetCommit", "Fetch"));
             self.inner.unary(req, path, codec).await
         }
     }
@@ -754,6 +792,10 @@ pub mod offset_commit_server {
             &self,
             request: tonic::Request<super::CommitRequest>,
         ) -> std::result::Result<tonic::Response<super::CommitResponse>, tonic::Status>;
+        async fn fetch(
+            &self,
+            request: tonic::Request<super::FetchRequest>,
+        ) -> std::result::Result<tonic::Response<super::FetchResponse>, tonic::Status>;
     }
     #[derive(Debug)]
     pub struct OffsetCommitServer<T: OffsetCommit> {
@@ -865,6 +907,51 @@ pub mod offset_commit_server {
                     let fut = async move {
                         let inner = inner.0;
                         let method = CommitSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/riftline.OffsetCommit/Fetch" => {
+                    #[allow(non_camel_case_types)]
+                    struct FetchSvc<T: OffsetCommit>(pub Arc<T>);
+                    impl<
+                        T: OffsetCommit,
+                    > tonic::server::UnaryService<super::FetchRequest> for FetchSvc<T> {
+                        type Response = super::FetchResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::FetchRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as OffsetCommit>::fetch(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let inner = inner.0;
+                        let method = FetchSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(
