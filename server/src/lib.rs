@@ -11,6 +11,11 @@ use std::future::Future;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 
+type OffsetKey = (String, i32, String);
+type OffsetMap = HashMap<OffsetKey, i64>;
+/// Shared map of committed offsets indexed by (topic, partition, group).
+type SharedOffsetMap = Arc<Mutex<OffsetMap>>;
+
 pub async fn serve(
     addr: SocketAddr,
     shutdown: impl Future<Output = ()> + Send,
@@ -135,13 +140,13 @@ impl Consumer for BasicConsumer {
 
 #[derive(Clone)]
 struct BasicOffsetCommit {
-    offsets: Arc<Mutex<HashMap<(String, i32, String), i64>>>,
+    offsets: SharedOffsetMap,
 }
 
 impl Default for BasicOffsetCommit {
     fn default() -> Self {
         Self {
-            offsets: Arc::new(Mutex::new(HashMap::new())),
+            offsets: Arc::new(Mutex::new(OffsetMap::new())),
         }
     }
 }
