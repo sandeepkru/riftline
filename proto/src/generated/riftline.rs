@@ -4,8 +4,8 @@
 pub struct ProduceRequest {
     #[prost(string, tag = "1")]
     pub topic: ::prost::alloc::string::String,
-    #[prost(bytes = "vec", tag = "2")]
-    pub message: ::prost::alloc::vec::Vec<u8>,
+    #[prost(bytes = "vec", repeated, tag = "2")]
+    pub messages: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]

@@ -975,7 +975,9 @@ name = "server"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "common",
  "proto",
+ "tempfile",
  "tokio",
  "tokio-stream",
  "tonic",

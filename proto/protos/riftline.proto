@@ -15,7 +15,7 @@ service OffsetCommit {
 
 message ProduceRequest {
     string topic = 1;
-    bytes message = 2;
+    repeated bytes messages = 2;
 }
 
 message ProduceResponse {
