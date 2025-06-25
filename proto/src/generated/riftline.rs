@@ -22,6 +22,8 @@ pub struct ConsumeRequest {
     pub topic: ::prost::alloc::string::String,
     #[prost(int32, tag = "2")]
     pub partition: i32,
+    #[prost(int64, tag = "3")]
+    pub offset: i64,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
