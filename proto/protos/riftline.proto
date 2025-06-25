@@ -11,6 +11,7 @@ service Consumer {
 
 service OffsetCommit {
     rpc Commit(CommitRequest) returns (CommitResponse);
+    rpc Fetch(FetchRequest) returns (FetchResponse);
 }
 
 message ProduceRequest {
@@ -43,4 +44,14 @@ message CommitRequest {
 
 message CommitResponse {
     bool success = 1;
+}
+
+message FetchRequest {
+    string topic = 1;
+    int32 partition = 2;
+    string consumer_group = 3;
+}
+
+message FetchResponse {
+    int64 offset = 1;
 }

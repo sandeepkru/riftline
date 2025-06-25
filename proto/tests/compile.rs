@@ -49,6 +49,13 @@ impl OffsetCommit for MockOffsetCommit {
     ) -> Result<Response<CommitResponse>, Status> {
         Ok(Response::new(CommitResponse { success: true }))
     }
+
+    async fn fetch(
+        &self,
+        _request: Request<FetchRequest>,
+    ) -> Result<Response<FetchResponse>, Status> {
+        Ok(Response::new(FetchResponse { offset: 0 }))
+    }
 }
 
 #[tokio::test]
